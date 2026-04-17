@@ -375,9 +375,17 @@ function buildQuizFromFilters({ resetCounters }) {
 }
 
 function startQuiz() {
+  const stored = readStoredQuizState();
+
+  if (stored) {
+    correct = stored.correct || 0;
+    wrong = stored.wrong || 0;
+    wrongStats = new Map(stored.wrongStats || []);
+  }
+
   clearQuizState();
   hasStoredState = false;
-  buildQuizFromFilters({ resetCounters: true });
+  buildQuizFromFilters({ resetCounters: false });
 }
 
   function continueQuiz() {
