@@ -83,6 +83,7 @@ button.secondary { background:transparent; color:var(--text); border:1px solid v
     </div>
     <div class="row" style="margin-top:14px">
       <button id="startBtn">Quiz starten</button>
+      <button class="secondary" id="continueBtn">Fortsetzen</button>
       <button class="secondary" id="restartBtn">Neu mischen</button>
       <button class="secondary" id="revealBtn">Lösung zeigen</button>
       <button class="secondary" id="themeBtn">Hellmodus</button>
@@ -122,6 +123,7 @@ const els = {
   limit: document.getElementById('limit'),
   order: document.getElementById('order'),
   startBtn: document.getElementById('startBtn'),
+  continueBtn: document.getElementById('continueBtn'),
   restartBtn: document.getElementById('restartBtn'),
   revealBtn: document.getElementById('revealBtn'),
   themeBtn: document.getElementById('themeBtn'),
@@ -281,9 +283,11 @@ function showIdleState() {
   els.nextBtn.classList.add('hidden');
 
   if (hasStoredState) {
-    els.result.textContent = 'Gespeicherter Stand gefunden. Mit Quiz starten fortsetzen oder mit Neu mischen neu beginnen.';
+    els.result.textContent = 'Gespeicherter Stand gefunden. Mit „Fortsetzen“ laden oder mit „Quiz starten“ neu beginnen.';
+    els.continueBtn.classList.remove('hidden');
   } else {
     els.result.textContent = '';
+    els.continueBtn.classList.add('hidden');
   }
 
   updateStats();
@@ -371,12 +375,18 @@ function buildQuizFromFilters({ resetCounters }) {
 }
 
 function startQuiz() {
+  clearQuizState();
+  hasStoredState = false;
+  buildQuizFromFilters({ resetCounters: true });
+}
+
+  function continueQuiz() {
   if (hasStoredState) {
     restoreQuizState();
     return;
   }
 
-  buildQuizFromFilters({ resetCounters: true });
+  els.result.textContent = 'Kein gespeicherter Stand vorhanden.';
 }
 
 function hardRestartQuiz() {
@@ -607,6 +617,7 @@ function initApp() {
 }
 
 els.startBtn.addEventListener('click', startQuiz);
+els.continueBtn.addEventListener('click', continueQuiz);
 els.restartBtn.addEventListener('click', hardRestartQuiz);
 els.revealBtn.addEventListener('click', () => checkAnswer(true));
 els.checkBtn.addEventListener('click', () => checkAnswer(false));
