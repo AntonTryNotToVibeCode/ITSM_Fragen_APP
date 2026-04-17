@@ -150,6 +150,10 @@ let currentSelection = [];
 let answerChecked = false;
 let lastResultText = '';
 
+function getQuestionState(key) {
+  return wrongStats.get(key) || { count: 0, dueAt: 0, resolved: false };
+}
+
 function qKey(item) {
   return item.question + '||' + item.answers.join('||');
 }
@@ -258,8 +262,14 @@ function restoreQuizState() {
   }
 }
 
-function buildQuiz() {
-  clearQuizState();
+function buildQuiz(forceReset = false) {
+  if (!forceReset && restoreQuizState()) {
+    return;
+  }
+
+  if (forceReset) {
+    clearQuizState();
+  }
 
   const q = els.search.value.trim().toLowerCase();
   const mode = els.mode.value;
@@ -284,12 +294,15 @@ function buildQuiz() {
   queue = [...filtered];
   currentItem = null;
   shownCount = 0;
-  correct = 0;
-  wrong = 0;
-  wrongStats = new Map();
   currentSelection = [];
   answerChecked = false;
   lastResultText = '';
+
+  if (forceReset) {
+    correct = 0;
+    wrong = 0;
+    wrongStats = new Map();
+  }
 
   updateStats();
 
@@ -301,7 +314,6 @@ function buildQuiz() {
     els.checkBtn.classList.add('hidden');
     els.nextBtn.classList.add('hidden');
     els.bar.style.width = '0%';
-    clearQuizState();
     return;
   }
 
@@ -408,6 +420,8 @@ function checkAnswer(revealOnly = false) {
   const item = currentItem;
   const sel = selected();
   const corr = getCorrectIndices(item);
+  const key = qKey(item);
+  const prevState = getQuestionState(key);
 
   currentSelection = sel;
   markAnswers(true);
@@ -422,23 +436,44 @@ function checkAnswer(revealOnly = false) {
     return;
   }
 
-  const key = qKey(item);
-
   if (arraysEqual(sel, corr)) {
-    correct++;
-    lastResultText = 'Richtig.';
+    if (prevState.count > 0 && !prevState.resolved) {
+      wrong = Math.max(0, wrong - 1);
+      correct++;
+      wrongStats.set(key, {
+        ...prevState,
+        resolved: true
+      });
+      lastResultText = 'Jetzt richtig. Vorheriger Fehler wurde ausgeglichen.';
+    } else {
+      correct++;
+      lastResultText = 'Richtig.';
+    }
+
     els.result.textContent = lastResultText;
   } else {
-    wrong++;
-    const prev = wrongStats.get(key) || { count: 0, dueAt: 0 };
-    const nextDue = shownCount + (els.spacedWrongToggle.checked ? 3 : 1);
-    wrongStats.set(key, { count: prev.count + 1, dueAt: nextDue });
+    if (prevState.count > 0 && !prevState.resolved) {
+      const nextDue = shownCount + (els.spacedWrongToggle.checked ? 3 : 1);
+      wrongStats.set(key, {
+        count: prevState.count + 1,
+        dueAt: nextDue,
+        resolved: false
+      });
+    } else {
+      wrong++;
+      const nextDue = shownCount + (els.spacedWrongToggle.checked ? 3 : 1);
+      wrongStats.set(key, {
+        count: prevState.count + 1,
+        dueAt: nextDue,
+        resolved: false
+      });
+    }
 
     if (els.repeatWrongToggle.checked) {
       queue.push(item);
     }
 
-    lastResultText = `Nicht ganz. Richtig ist: ${corr.map(i => i + 1).join(', ')}. Diese Frage wird später wiederholt.`;
+    lastResultText = `Nicht ganz. Richtig ist: ${corr.map(i => i + 1).join(', ')}.${els.repeatWrongToggle.checked ? ' Diese Frage wird später wiederholt.' : ''}`;
     els.result.textContent = lastResultText;
   }
 
@@ -447,7 +482,7 @@ function checkAnswer(revealOnly = false) {
 }
 
 function showFinishedState() {
-  els.meta.textContent = `Fertig · ${correct + wrong} beantwortet`;
+  els.meta.textContent = `Fertig · ${correct + wrong} offen bewertet`;
   els.question.textContent = 'Quiz beendet.';
   els.answers.innerHTML = '';
   els.checkBtn.classList.add('hidden');
@@ -455,7 +490,7 @@ function showFinishedState() {
 
   const total = correct + wrong;
   const score = total ? Math.round((correct / total) * 100) : 0;
-  els.result.textContent = `Ergebnis: ${correct} richtig, ${wrong} falsch · ${score}%`;
+  els.result.textContent = `Stand: ${correct} richtig, ${wrong} falsch · ${score}%`;
 
   currentItem = null;
   currentSelection = [];
@@ -475,12 +510,19 @@ function nextQuestion() {
   let nextIndex = 0;
 
   if (els.repeatWrongToggle.checked) {
-    const dueIndex = queue.findIndex(item => {
-      const s = wrongStats.get(qKey(item));
-      return s && s.dueAt <= shownCount;
-    });
-
-    if (dueIndex >= 0) nextIndex = dueIndex;
+    if (els.spacedWrongToggle.checked) {
+      const dueIndex = queue.findIndex(item => {
+        const s = wrongStats.get(qKey(item));
+        return s && !s.resolved && s.dueAt <= shownCount;
+      });
+      if (dueIndex >= 0) nextIndex = dueIndex;
+    } else {
+      const repeatIndex = queue.findIndex(item => {
+        const s = wrongStats.get(qKey(item));
+        return s && !s.resolved;
+      });
+      if (repeatIndex >= 0) nextIndex = repeatIndex;
+    }
   }
 
   currentItem = queue.splice(nextIndex, 1)[0];
@@ -504,8 +546,8 @@ const savedTheme = localStorage.getItem(THEME_STATE_KEY) || 'dark';
 applyTheme(savedTheme);
 restoreQuizState();
 
-els.startBtn.addEventListener('click', buildQuiz);
-els.restartBtn.addEventListener('click', buildQuiz);
+els.startBtn.addEventListener('click', () => buildQuiz(false));
+els.restartBtn.addEventListener('click', () => buildQuiz(true));
 els.revealBtn.addEventListener('click', () => {
   if (currentItem) checkAnswer(true);
 });
