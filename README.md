@@ -1,4 +1,10 @@
-# ITSM_Fragen_APP
-Fragenkatalog Müller ITSM
+# ITIL5 Lernapp
 
-Link: https://antontrynottovibecode.github.io/ITSM_Fragen_APP/
+Multiple Choice Webapp zum Lernen fuer die Zertifizierung.
+
+Start:
+npm install
+npm run dev
+
+Build:
+npm run build
